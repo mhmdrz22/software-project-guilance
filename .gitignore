@@ -19,3 +19,6 @@ frontend/dist/
 .idea/
 
 .env
+
+# Log files
+*.log
