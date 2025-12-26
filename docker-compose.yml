@@ -11,6 +11,16 @@ services:
       db:
         condition: service_healthy
 
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
   db:
     image: public.ecr.aws/docker/library/postgres:15
     environment:
