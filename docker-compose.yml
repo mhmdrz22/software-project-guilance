@@ -6,7 +6,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:mhmdrz17@db:5432/software_project_test
+      - DATABASE_URL=postgres://postgres:mhmdrz17@db:5432/software_project_test
     depends_on:
       db:
         condition: service_healthy
