@@ -59,7 +59,10 @@ DATABASES = {
         conn_max_age=600,
     )
 }
+
+
 print(f"DEBUG: Connecting to Database -> {os.environ.get('DATABASE_URL')}")
+
 
 AUTH_PASSWORD_VALIDATORS = [
     {
