@@ -55,12 +55,13 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 DATABASES = {
     "default": dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        #default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
     )
 }
 
-print(f"DEBUG: Connecting to Database -> {DATABASES['default']['ENGINE']} / {os.environ.get('DATABASE_URL', 'Not Set')}")
+
+print(f"DEBUG: Connecting to Database -> {os.environ.get('DATABASE_URL')}")
 
 
 AUTH_PASSWORD_VALIDATORS = [
