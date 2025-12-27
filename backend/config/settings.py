@@ -60,6 +60,8 @@ DATABASES = {
     )
 }
 
+print(f"DEBUG: Connecting to Database -> {DATABASES['default']['ENGINE']} / {os.environ.get('DATABASE_URL', 'Not Set')}")
+
 
 AUTH_PASSWORD_VALIDATORS = [
     {
