@@ -59,7 +59,7 @@ DATABASES = {
     )
 }
 
-print(f"DEBUG: Connecting to Database -> {DATABASES['default']['ENGINE']} / {os.environ.get('DATABASE_URL', 'Not Set')}")
+print(f"DEBUG: Connecting to Database -> {DATABASES['default']['ENGINE']}")
 
 
 AUTH_PASSWORD_VALIDATORS = [
