@@ -143,3 +143,41 @@ class AuthIntegrationTests(APITestCase):
         self.client.logout()  # Ensure no auth
         response = self.client.get(self.me_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_register_weak_password(self):
+        """
+        Test that registration fails with a short/weak password (min length logic).
+        """
+        data = {
+            "email": "weak@example.com",
+            "password": "short",
+            "username": "weak"
+        }
+        response = self.client.post(self.register_url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", response.data)
+
+    def test_register_invalid_email_format(self):
+        """
+        Test that registration fails with invalid email format.
+        """
+        data = {
+            "email": "not-an-email",
+            "password": "validpassword123",
+            "username": "invalidemail"
+        }
+        response = self.client.post(self.register_url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+
+    def test_login_case_insensitive_email(self):
+        """
+        Test login works with different casing of the registered email.
+        """
+        # User created in setUp is 'existing@example.com'
+        data = {
+            "email": "EXISTING@example.com",
+            "password": "strongpassword123"
+        }
+        response = self.client.post(self.login_url, data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
