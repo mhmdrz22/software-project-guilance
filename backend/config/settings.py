@@ -4,7 +4,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "django-insecure-change-me"
+SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-change-me")
 DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
@@ -59,7 +59,7 @@ DATABASES = {
     )
 }
 
-print(f"DEBUG: Connecting to Database -> {DATABASES['default']['ENGINE']} / {os.environ.get('DATABASE_URL', 'Not Set')}")
+print(f"DEBUG: Connecting to Database -> {DATABASES['default']['ENGINE']}")
 
 
 AUTH_PASSWORD_VALIDATORS = [
