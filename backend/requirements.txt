@@ -8,3 +8,4 @@ dj-database-url
 gunicorn
 celery
 redis
+django-filter

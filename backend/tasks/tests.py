@@ -73,3 +73,77 @@ class TaskAPITests(APITestCase):
 
         # Assert 404 Not Found (because get_queryset filters it out)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_update_task_happy_path(self):
+        """
+        Test successful update of a task.
+        """
+        task = Task.objects.create(user=self.user1, title="Old Title")
+        self.client.force_authenticate(user=self.user1)
+        url = reverse("task-detail", args=[task.id])
+        data = {"title": "New Title", "priority": "LOW"}
+
+        response = self.client.patch(url, data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        task.refresh_from_db()
+        self.assertEqual(task.title, "New Title")
+        self.assertEqual(task.priority, "LOW")
+
+    def test_delete_task_happy_path(self):
+        """
+        Test successful deletion of a task.
+        """
+        task = Task.objects.create(user=self.user1, title="To Delete")
+        self.client.force_authenticate(user=self.user1)
+        url = reverse("task-detail", args=[task.id])
+
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Task.objects.filter(id=task.id).exists())
+
+    def test_create_task_invalid_status(self):
+        """
+        Test that creating task with invalid status fails validation.
+        """
+        self.client.force_authenticate(user=self.user1)
+        data = {"title": "Bad Task", "status": "INVALID_STATUS"}
+        response = self.client.post(self.list_url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("status", response.data)
+
+    def test_filter_tasks_by_status(self):
+        """
+        Test filtering tasks by status.
+        """
+        Task.objects.create(user=self.user1, title="Todo Task", status="TODO")
+        Task.objects.create(user=self.user1, title="Done Task", status="DONE")
+
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.get(self.list_url, {'status': 'DONE'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['title'], "Done Task")
+
+    def test_search_tasks_by_title(self):
+        """
+        Test searching tasks by title.
+        """
+        Task.objects.create(user=self.user1, title="Buy Milk")
+        Task.objects.create(user=self.user1, title="Walk Dog")
+
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.get(self.list_url, {'search': 'Milk'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['title'], "Buy Milk")
+
+    def test_unauthenticated_user_cannot_create_task(self):
+        """
+        Test unauthenticated user cannot create task.
+        """
+        self.client.logout()
+        data = {"title": "Ghost Task"}
+        response = self.client.post(self.list_url, data)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
