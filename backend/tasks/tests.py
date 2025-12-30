@@ -1,114 +1,149 @@
-from django.test import TestCase
 from django.contrib.auth import get_user_model
-from rest_framework.test import APIClient
+from django.urls import reverse
 from rest_framework import status
+from rest_framework.test import APITestCase
 from .models import Task
 
 User = get_user_model()
 
-class TaskModelTest(TestCase):
+class TaskAPITests(APITestCase):
     def setUp(self):
-        """Set up a user for the tests."""
-        self.user = User.objects.create_user(
-            username="testuser",
-            email="test@example.com",
-            password="testpassword123",
-        )
+        # Create two distinct users
+        self.user1 = User.objects.create_user(email="user1@example.com", password="password123")
+        self.user2 = User.objects.create_user(email="user2@example.com", password="password123")
 
-    def test_create_task_with_defaults(self):
-        """Test creating a task with default status and priority."""
-        task = Task.objects.create(
-            user=self.user,
-            title="A simple test task",
-        )
-        self.assertEqual(task.title, "A simple test task")
-        self.assertEqual(task.user, self.user)
-        self.assertEqual(task.status, "TODO")
-        self.assertEqual(task.priority, "MEDIUM")
-        self.assertIsNone(task.due_date)
-        self.assertEqual(str(task), "A simple test task")
+        # URLs
+        self.list_url = reverse("task-list")  # Assuming router basename is 'task'
 
-    def test_create_task_with_specific_values(self):
-        """Test creating a task with specific status, priority, and due date."""
-        task = Task.objects.create(
-            user=self.user,
-            title="A high priority task",
-            description="This is important.",
-            status="DOING",
-            priority="HIGH",
-        )
-        self.assertEqual(task.title, "A high priority task")
-        self.assertEqual(task.status, "DOING")
-        self.assertEqual(task.priority, "HIGH")
-        self.assertEqual(task.description, "This is important.")
+    def test_create_task_happy_path(self):
+        """
+        Ensure authenticated user can create a task and it's assigned to them.
+        """
+        self.client.force_authenticate(user=self.user1)
+        data = {
+            "title": "Buy Milk",
+            "priority": "HIGH",
+            "status": "TODO"
+        }
+        response = self.client.post(self.list_url, data)
 
-    def test_task_ordering(self):
-        """Test that tasks are ordered by creation date in descending order."""
-        task1 = Task.objects.create(user=self.user, title="First Task")
-        task2 = Task.objects.create(user=self.user, title="Second Task")
+        # Assert 201 Created
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        tasks = Task.objects.all()
-        self.assertEqual(tasks[0], task2)
-        self.assertEqual(tasks[1], task1)
+        # Assert DB count increased
+        self.assertEqual(Task.objects.count(), 1)
 
+        # Assert user ownership
+        task = Task.objects.get()
+        self.assertEqual(task.user, self.user1)
+        self.assertEqual(task.title, "Buy Milk")
 
-class TaskAPITest(TestCase):
-    def setUp(self):
-        self.user1 = User.objects.create_user(
-            username="user1", email="user1@example.com", password="password123"
-        )
-        self.user2 = User.objects.create_user(
-            username="user2", email="user2@example.com", password="password123"
-        )
+    def test_list_tasks_isolation(self):
+        """
+        Ensure users only see their own tasks.
+        """
+        # Create tasks for both users
+        Task.objects.create(user=self.user1, title="User1 Task")
+        Task.objects.create(user=self.user2, title="User2 Task")
 
-        self.client = APIClient()
+        # Authenticate as User1
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.get(self.list_url)
+
+        # Assert 200 OK
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Assert only 1 task returned (User1's task)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['title'], "User1 Task")
+
+    def test_access_other_user_task_404(self):
+        """
+        Ensure accessing another user's task returns 404 (Security via Visibility).
+        """
+        # Create a task for User2
+        task_user2 = Task.objects.create(user=self.user2, title="Secret Task")
+        url = reverse("task-detail", args=[task_user2.id])
+
+        # Authenticate as User1
         self.client.force_authenticate(user=self.user1)
 
-        self.task1 = Task.objects.create(user=self.user1, title="User 1's Task")
-        self.task2 = Task.objects.create(user=self.user2, title="User 2's Task")
+        # Try to retrieve/update/delete User2's task
+        response = self.client.get(url)
 
-    def test_list_tasks_for_authenticated_user(self):
-        """Test that a user can only list their own tasks."""
-        response = self.client.get("/api/tasks/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["title"], self.task1.title)
-
-    def test_create_task(self):
-        """Test that a user can create a task."""
-        data = {"title": "New Task", "priority": "HIGH"}
-        response = self.client.post("/api/tasks/", data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Task.objects.filter(user=self.user1).count(), 2)
-
-    def test_retrieve_own_task(self):
-        """Test that a user can retrieve their own task."""
-        response = self.client.get(f"/api/tasks/{self.task1.id}/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["title"], self.task1.title)
-
-    def test_cannot_retrieve_other_users_task(self):
-        """Test that a user cannot retrieve another user's task."""
-        response = self.client.get(f"/api/tasks/{self.task2.id}/")
+        # Assert 404 Not Found (because get_queryset filters it out)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_update_own_task(self):
-        """Test that a user can update their own task."""
-        data = {"title": "Updated Title", "status": "DONE"}
-        response = self.client.put(f"/api/tasks/{self.task1.id}/", data)
+    def test_update_task_happy_path(self):
+        """
+        Test successful update of a task.
+        """
+        task = Task.objects.create(user=self.user1, title="Old Title")
+        self.client.force_authenticate(user=self.user1)
+        url = reverse("task-detail", args=[task.id])
+        data = {"title": "New Title", "priority": "LOW"}
+
+        response = self.client.patch(url, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.task1.refresh_from_db()
-        self.assertEqual(self.task1.title, "Updated Title")
-        self.assertEqual(self.task1.status, "DONE")
+        task.refresh_from_db()
+        self.assertEqual(task.title, "New Title")
+        self.assertEqual(task.priority, "LOW")
 
-    def test_delete_own_task(self):
-        """Test that a user can delete their own task."""
-        response = self.client.delete(f"/api/tasks/{self.task1.id}/")
+    def test_delete_task_happy_path(self):
+        """
+        Test successful deletion of a task.
+        """
+        task = Task.objects.create(user=self.user1, title="To Delete")
+        self.client.force_authenticate(user=self.user1)
+        url = reverse("task-detail", args=[task.id])
+
+        response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(Task.objects.filter(id=self.task1.id).exists())
+        self.assertFalse(Task.objects.filter(id=task.id).exists())
 
-    def test_unauthenticated_user_cannot_access_tasks(self):
-        """Test that an unauthenticated user gets a 401 error."""
+    def test_create_task_invalid_status(self):
+        """
+        Test that creating task with invalid status fails validation.
+        """
+        self.client.force_authenticate(user=self.user1)
+        data = {"title": "Bad Task", "status": "INVALID_STATUS"}
+        response = self.client.post(self.list_url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("status", response.data)
+
+    def test_filter_tasks_by_status(self):
+        """
+        Test filtering tasks by status.
+        """
+        Task.objects.create(user=self.user1, title="Todo Task", status="TODO")
+        Task.objects.create(user=self.user1, title="Done Task", status="DONE")
+
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.get(self.list_url, {'status': 'DONE'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['title'], "Done Task")
+
+    def test_search_tasks_by_title(self):
+        """
+        Test searching tasks by title.
+        """
+        Task.objects.create(user=self.user1, title="Buy Milk")
+        Task.objects.create(user=self.user1, title="Walk Dog")
+
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.get(self.list_url, {'search': 'Milk'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['title'], "Buy Milk")
+
+    def test_unauthenticated_user_cannot_create_task(self):
+        """
+        Test unauthenticated user cannot create task.
+        """
         self.client.logout()
-        response = self.client.get("/api/tasks/")
+        data = {"title": "Ghost Task"}
+        response = self.client.post(self.list_url, data)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

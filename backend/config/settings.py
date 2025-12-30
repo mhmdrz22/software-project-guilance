@@ -1,8 +1,10 @@
+import os
+import dj_database_url
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "django-insecure-change-me"
+SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-change-me")
 DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
@@ -52,11 +54,12 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+    "default": dj_database_url.config(
+        conn_max_age=600,
+    )
 }
+
+print(f"DEBUG: Connecting to Database -> {DATABASES['default']['ENGINE']}")
 
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -104,3 +107,7 @@ AUTH_USER_MODEL = "accounts.User"
 SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
+
+# Celery Configuration
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://redis:6379/1')
