@@ -53,9 +53,33 @@ class TaskAPITests(APITestCase):
         # Assert 200 OK
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+        # With Pagination, results are in 'results' key
+        # If pagination is off, response.data is the list.
+        results = response.data.get('results', response.data) if isinstance(response.data, dict) else response.data
+
         # Assert only 1 task returned (User1's task)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['title'], "User1 Task")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['title'], "User1 Task")
+
+    def test_pagination(self):
+        """
+        Ensure that task list is paginated.
+        """
+        # Create 11 tasks for user1
+        for i in range(11):
+            Task.objects.create(user=self.user1, title=f"Task {i}")
+
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Check for keys 'count', 'next', 'previous', 'results'
+        self.assertIn('count', response.data)
+        self.assertIn('next', response.data)
+        self.assertIn('results', response.data)
+        self.assertEqual(response.data['count'], 11)
+        self.assertEqual(len(response.data['results']), 10) # default page size is 10
+        self.assertIsNotNone(response.data['next'])
 
     def test_access_other_user_task_404(self):
         """
@@ -122,8 +146,10 @@ class TaskAPITests(APITestCase):
         response = self.client.get(self.list_url, {'status': 'DONE'})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['title'], "Done Task")
+
+        results = response.data.get('results', response.data) if isinstance(response.data, dict) else response.data
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['title'], "Done Task")
 
     def test_search_tasks_by_title(self):
         """
@@ -136,8 +162,10 @@ class TaskAPITests(APITestCase):
         response = self.client.get(self.list_url, {'search': 'Milk'})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['title'], "Buy Milk")
+
+        results = response.data.get('results', response.data) if isinstance(response.data, dict) else response.data
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['title'], "Buy Milk")
 
     def test_unauthenticated_user_cannot_create_task(self):
         """
