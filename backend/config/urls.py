@@ -15,6 +15,8 @@ def home_view(request):
             "tasks": "/api/tasks/",
             "admin_panel": "/api/admin/",
             "admin_dashboard": "/admin/",
+            "api_docs": "/api/docs/",
+            "api_schema": "/api/schema/",
         },
         "status": "running"
     })
@@ -25,9 +27,6 @@ urlpatterns = [
     path('api/auth/', include('accounts.urls')),
     path('api/tasks/', include('tasks.urls')),
     path('api/admin/', include('adminpanel.urls')),
-]
-
-
     # OpenAPI schema
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
