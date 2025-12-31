@@ -1,27 +1,28 @@
 from django.contrib import admin
 from django.urls import path, include
 from django.http import JsonResponse
-from drf_spectacular.views import (
-    SpectacularAPIView,
-    SpectacularSwaggerView
-)
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
-def root_view(request):
+def home_view(request):
     return JsonResponse({
-        "project": "Team Task Board API",
+        "message": "Welcome to Task Board API - Software Engineering Project",
         "version": "1.0.0",
-        "message": "Welcome to the API. Visit /api/docs/ for documentation.",
-        "documentation_url": "/api/docs/"
+        "endpoints": {
+            "authentication": "/api/auth/",
+            "tasks": "/api/tasks/",
+            "admin_panel": "/api/admin/",
+            "admin_dashboard": "/admin/",
+            "api_docs": "/api/docs/",
+        },
+        "status": "running"
     })
 
 urlpatterns = [
-    path("", root_view, name="root"),
-    path("admin/", admin.site.urls),
-    path("api/auth/", include("accounts.urls")),
-    path("api/", include("tasks.urls")),
-    path("api/admin/", include("adminpanel.urls")),
-
-    # OpenAPI schema
+    path('', home_view, name='home'),
+    path('admin/', admin.site.urls),
+    path('api/auth/', include('accounts.urls')),
+    path('api/tasks/', include('tasks.urls')),
+    path('api/admin/', include('adminpanel.urls')),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
 ]
